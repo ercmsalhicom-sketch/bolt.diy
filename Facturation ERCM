@@ -1,0 +1,291 @@
+package com.invoice;
+
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
+import com.itextpdf.layout.element.Cell;
+import com.itextpdf.layout.properties.TextAlignment;
+import com.itextpdf.layout.properties.UnitValue;
+import com.itextpdf.kernel.font.PdfFont;
+import com.itextpdf.kernel.font.PdfFontFactory;
+import com.itextpdf.io.font.constants.StandardFonts;
+import java.io.FileNotFoundException;
+import java.text.DecimalFormat;
+import java.util.List;
+
+/**
+ * كلاس لتصدير الفواتير إلى ملف PDF
+ */
+public class PDFExporter {
+    
+    private static final DecimalFormat df = new DecimalFormat("#,##0.00");
+    
+    /**
+     * تصدير قائمة الفواتير إلى PDF
+     */
+    public static boolean exportToPDF(List<Invoice> invoices, String category, String filePath) {
+        try {
+            PdfWriter writer = new PdfWriter(filePath);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf);
+            
+            // إضافة العنوان
+            PdfFont font = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+            Paragraph title = new Paragraph("نظام إدارة الفواتير - " + getCategoryName(category))
+                .setFont(font)
+                .setFontSize(20)
+                .setTextAlignment(TextAlignment.CENTER)
+                .setBold();
+            document.add(title);
+            
+            // إضافة مسافة
+            document.add(new Paragraph("\n"));
+            
+            // إنشاء الجدول
+            float[] columnWidths = {50, 100, 200, 150, 120, 120, 120, 120};
+            Table table = new Table(UnitValue.createPointArray(columnWidths));
+            table.setWidth(UnitValue.createPercentValue(100));
+            
+            // إضافة الهيدر
+            addTableHeader(table);
+            
+            // إضافة البيانات
+            double totalHt = 0, totalTva = 0, totalTtc = 0;
+            int rowNum = 1;
+            
+            for (Invoice invoice : invoices) {
+                table.addCell(new Cell().add(new Paragraph(String.valueOf(rowNum++))));
+                table.addCell(new Cell().add(new Paragraph(invoice.getDate())));
+                table.addCell(new Cell().add(new Paragraph(invoice.getSupplier())));
+                table.addCell(new Cell().add(new Paragraph(invoice.getInvoiceNum())));
+                table.addCell(new Cell().add(new Paragraph(df.format(invoice.getHt()))));
+                table.addCell(new Cell().add(new Paragraph(df.format(invoice.getTva()))));
+                table.addCell(new Cell().add(new Paragraph(df.format(invoice.getTtc()))));
+                table.addCell(new Cell().add(new Paragraph(invoice.getPayment())));
+                
+                totalHt += invoice.getHt();
+                totalTva += invoice.getTva();
+                totalTtc += invoice.getTtc();
+            }
+            
+            // إضافة صف المجاميع
+            table.addCell(new Cell(1, 4).add(new Paragraph("المجموع الكلي").setBold())
+                .setTextAlignment(TextAlignment.CENTER));
+            table.addCell(new Cell().add(new Paragraph(df.format(totalHt)).setBold()));
+            table.addCell(new Cell().add(new Paragraph(df.format(totalTva)).setBold()));
+            table.addCell(new Cell().add(new Paragraph(df.format(totalTtc)).setBold()));
+            table.addCell(new Cell().add(new Paragraph("")));
+            
+            document.add(table);
+            
+            // إضافة معلومات إضافية
+            document.add(new Paragraph("\n"));
+            document.add(new Paragraph("عدد الفواتير: " + invoices.size())
+                .setFontSize(12));
+            document.add(new Paragraph("تاريخ التصدير: " + java.time.LocalDate.now())
+                .setFontSize(10));
+            
+            document.close();
+            
+            System.out.println("✅ تم تصدير الفواتير إلى PDF: " + filePath);
+            return true;
+            
+        } catch (Exception e) {
+            System.err.println("❌ خطأ في التصدير إلى PDF: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    /**
+     * إضافة هيدر الجدول
+     */
+    private static void addTableHeader(Table table) {
+        String[] headers = {"#", "التاريخ", "المورد/العميل", "رقم الفاتورة", 
+                           "HT", "TVA", "TTC", "الدفع"};
+        
+        for (String header : headers) {
+            Cell cell = new Cell().add(new Paragraph(header).setBold());
+            cell.setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY);
+            cell.setTextAlignment(TextAlignment.CENTER);
+            table.addHeaderCell(cell);
+        }
+    }
+    
+    /**
+     * الحصول على اسم الفئة بالعربية
+     */
+    private static String getCategoryName(String category) {
+        return switch (category) {
+            case "investment" -> "فواتير الاستثمار";
+            case "purchase" -> "فواتير الشراء";
+            case "materials" -> "المواد الأولية";
+            case "client" -> "حسابات العملاء";
+            default -> category;
+        };
+    }
+    
+    /**
+     * إنشاء تقرير شامل لكل الفئات
+     */
+    public static boolean exportFullReport(
+            List<Invoice> investment,
+            List<Invoice> purchase,
+            List<Invoice> materials,
+            List<Invoice> client,
+            String filePath) {
+        
+        try {
+            PdfWriter writer = new PdfWriter(filePath);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf);
+            
+            // العنوان الرئيسي
+            PdfFont boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+            Paragraph mainTitle = new Paragraph("تقرير شامل - نظام إدارة الفواتير")
+                .setFont(boldFont)
+                .setFontSize(24)
+                .setTextAlignment(TextAlignment.CENTER)
+                .setBold();
+            document.add(mainTitle);
+            
+            document.add(new Paragraph("التاريخ: " + java.time.LocalDate.now())
+                .setFontSize(12)
+                .setTextAlignment(TextAlignment.CENTER));
+            
+            document.add(new Paragraph("\n\n"));
+            
+            // إضافة كل فئة
+            addCategorySection(document, investment, "investment");
+            document.add(new Paragraph("\n\n"));
+            
+            addCategorySection(document, purchase, "purchase");
+            document.add(new Paragraph("\n\n"));
+            
+            addCategorySection(document, materials, "materials");
+            document.add(new Paragraph("\n\n"));
+            
+            addCategorySection(document, client, "client");
+            
+            // إضافة ملخص عام
+            document.add(new Paragraph("\n\n"));
+            addOverallSummary(document, investment, purchase, materials, client);
+            
+            document.close();
+            
+            System.out.println("✅ تم إنشاء التقرير الشامل: " + filePath);
+            return true;
+            
+        } catch (Exception e) {
+            System.err.println("❌ خطأ في إنشاء التقرير: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    /**
+     * إضافة قسم فئة معينة
+     */
+    private static void addCategorySection(Document document, List<Invoice> invoices, String category) 
+            throws Exception {
+        
+        PdfFont boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+        
+        // عنوان الفئة
+        Paragraph categoryTitle = new Paragraph(getCategoryName(category))
+            .setFont(boldFont)
+            .setFontSize(18)
+            .setBold();
+        document.add(categoryTitle);
+        
+        // إنشاء جدول مختصر
+        float[] columnWidths = {100, 200, 120, 120, 120};
+        Table table = new Table(UnitValue.createPointArray(columnWidths));
+        table.setWidth(UnitValue.createPercentValue(100));
+        
+        // هيدر مختصر
+        String[] headers = {"التاريخ", "المورد/العميل", "HT", "TVA", "TTC"};
+        for (String header : headers) {
+            Cell cell = new Cell().add(new Paragraph(header).setBold());
+            cell.setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY);
+            table.addHeaderCell(cell);
+        }
+        
+        // البيانات
+        double totalHt = 0, totalTva = 0, totalTtc = 0;
+        for (Invoice invoice : invoices) {
+            table.addCell(new Cell().add(new Paragraph(invoice.getDate())));
+            table.addCell(new Cell().add(new Paragraph(invoice.getSupplier())));
+            table.addCell(new Cell().add(new Paragraph(df.format(invoice.getHt()))));
+            table.addCell(new Cell().add(new Paragraph(df.format(invoice.getTva()))));
+            table.addCell(new Cell().add(new Paragraph(df.format(invoice.getTtc()))));
+            
+            totalHt += invoice.getHt();
+            totalTva += invoice.getTva();
+            totalTtc += invoice.getTtc();
+        }
+        
+        // المجموع
+        table.addCell(new Cell(1, 2).add(new Paragraph("المجموع").setBold()));
+        table.addCell(new Cell().add(new Paragraph(df.format(totalHt)).setBold()));
+        table.addCell(new Cell().add(new Paragraph(df.format(totalTva)).setBold()));
+        table.addCell(new Cell().add(new Paragraph(df.format(totalTtc)).setBold()));
+        
+        document.add(table);
+        
+        // معلومات إضافية
+        document.add(new Paragraph("عدد الفواتير: " + invoices.size())
+            .setFontSize(10)
+            .setItalic());
+    }
+    
+    /**
+     * إضافة ملخص عام
+     */
+    private static void addOverallSummary(Document document, 
+            List<Invoice> investment, List<Invoice> purchase,
+            List<Invoice> materials, List<Invoice> client) throws Exception {
+        
+        PdfFont boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+        
+        Paragraph summaryTitle = new Paragraph("الملخص العام")
+            .setFont(boldFont)
+            .setFontSize(20)
+            .setBold()
+            .setTextAlignment(TextAlignment.CENTER);
+        document.add(summaryTitle);
+        
+        double grandTotalHt = 0, grandTotalTva = 0, grandTotalTtc = 0;
+        int totalCount = 0;
+        
+        for (List<Invoice> list : List.of(investment, purchase, materials, client)) {
+            for (Invoice inv : list) {
+                grandTotalHt += inv.getHt();
+                grandTotalTva += inv.getTva();
+                grandTotalTtc += inv.getTtc();
+            }
+            totalCount += list.size();
+        }
+        
+        Table summaryTable = new Table(2);
+        summaryTable.setWidth(UnitValue.createPercentValue(50));
+        
+        summaryTable.addCell(new Cell().add(new Paragraph("إجمالي عدد الفواتير:").setBold()));
+        summaryTable.addCell(new Cell().add(new Paragraph(String.valueOf(totalCount))));
+        
+        summaryTable.addCell(new Cell().add(new Paragraph("إجمالي HT:").setBold()));
+        summaryTable.addCell(new Cell().add(new Paragraph(df.format(grandTotalHt) + " DA")));
+        
+        summaryTable.addCell(new Cell().add(new Paragraph("إجمالي TVA:").setBold()));
+        summaryTable.addCell(new Cell().add(new Paragraph(df.format(grandTotalTva) + " DA")));
+        
+        summaryTable.addCell(new Cell().add(new Paragraph("الإجمالي الكلي:").setBold())
+            .setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.YELLOW));
+        summaryTable.addCell(new Cell().add(new Paragraph(df.format(grandTotalTtc) + " DA").setBold())
+            .setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.YELLOW));
+        
+        document.add(summaryTable);
+    }
+}
